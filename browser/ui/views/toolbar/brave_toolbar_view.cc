@@ -5,6 +5,8 @@
 
 #include "brave/browser/ui/views/toolbar/brave_toolbar_view.h"
 
+#include "brave/components/lockdown_browser/browser/lockdown_manager.h"
+
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -540,6 +542,12 @@ void BraveToolbarView::ViewHierarchyChanged(
 }
 
 void BraveToolbarView::Layout(PassKey) {
+  if (lockdown_browser::LockdownManager::GetInstance()->current_mode() ==
+      lockdown_browser::LockdownMode::kExam) {
+    SetVisible(false);
+    return;
+  }
+
   if (!brave_initialized_ || display_mode_ != DisplayMode::kNormal) {
     LayoutSuperclass<ToolbarView>(this);
     return;

@@ -5,6 +5,8 @@
 
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
 
+#include "brave/components/lockdown_browser/browser/lockdown_manager.h"
+
 #include <optional>
 
 #include "base/check.h"
@@ -790,6 +792,9 @@ void RenderViewContextMenu::SetAIEngineForTesting(
 #endif
 
 void RenderViewContextMenu::InitMenu() {
+  if (lockdown_browser::LockdownManager::GetInstance()->IsLockdownActive()) {
+    return;
+  }
   RenderViewContextMenu_Chromium::InitMenu();
 
   // Move "Open link in split view" to the last item of the first section (right

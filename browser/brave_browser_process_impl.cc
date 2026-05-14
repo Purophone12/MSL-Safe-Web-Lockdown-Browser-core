@@ -23,6 +23,8 @@
 #include "brave/browser/net/brave_system_request_handler.h"
 #include "brave/browser/profiles/brave_profile_manager.h"
 #include "brave/common/brave_channel_info.h"
+#include "brave/components/lockdown_browser/browser/lockdown_manager.h"
+#include "brave/components/lockdown_browser/browser/firebase_service.h"
 #include "brave/components/ai_chat/core/common/buildflags/buildflags.h"
 #include "brave/components/brave_component_updater/browser/brave_component_updater_delegate.h"
 #include "brave/components/brave_component_updater/browser/local_data_files_service.h"
@@ -154,6 +156,9 @@ BraveBrowserProcessImpl::BraveBrowserProcessImpl(StartupData* startup_data)
 
   // early initialize misc metrics
   process_misc_metrics();
+
+  // Initialize Firebase Service
+  lockdown_browser::FirebaseService::GetInstance();
 }
 
 void BraveBrowserProcessImpl::Init() {
