@@ -46,6 +46,8 @@
 #include "brave/browser/ui/webui/skus_internals_ui.h"
 #include "brave/browser/updater/buildflags.h"
 #include "brave/browser/url_sanitizer/url_sanitizer_service_factory.h"
+#include "brave/components/lockdown_browser/browser/lockdown_manager.h"
+#include "brave/components/lockdown_browser/browser/lockdown_navigation_throttle.h"
 #include "brave/components/ai_chat/core/common/buildflags/buildflags.h"
 #include "brave/components/body_sniffer/body_sniffer_throttle.h"
 #include "brave/components/brave_account/features.h"
@@ -550,6 +552,18 @@ bool BraveContentBrowserClient::AreIsolatedWebAppsEnabled(
   return false;
 }
 
+bool BraveContentBrowserClient::IsDevToolsAllowed(
+    content::BrowserContext* browser_context,
+    content::WebContents* web_contents) {
+  if (lockdown_browser::LockdownManager::GetInstance()->IsLockdownActive()) {
+    auto* manager = lockdown_browser::LockdownManager::GetInstance();
+    lockdown_browser::FirebaseService::GetInstance()->ReportViolation(
+        manager->session_code(), manager->google_id(), "devtools_attempt", base::Value::Dict());
+    return false;
+  }
+  return ChromeContentBrowserClient::IsDevToolsAllowed(browser_context, web_contents);
+}
+
 void BraveContentBrowserClient::BrowserURLHandlerCreated(
     content::BrowserURLHandler* handler) {
   handler->AddHandlerPair(&HandleURLOverrideRewrite, &HandleURLOverrideRewrite);
@@ -892,6 +906,9 @@ bool BraveContentBrowserClient::CanCreateWindow(
     bool user_gesture,
     bool opener_suppressed,
     bool* no_javascript_access) {
+  if (lockdown_browser::LockdownManager::GetInstance()->IsLockdownActive()) {
+    return false;
+  }
   // Check base implementation first
   bool can_create_window = ChromeContentBrowserClient::CanCreateWindow(
       opener, opener_url, opener_top_level_frame_url, source_origin,
@@ -1336,6 +1353,10 @@ bool BraveContentBrowserClient::HandleURLOverrideRewrite(
 
 void BraveContentBrowserClient::CreateThrottlesForNavigation(
     content::NavigationThrottleRegistry& registry) {
+  if (auto lockdown_throttle = lockdown_browser::LockdownNavigationThrottle::MaybeCreateThrottleFor(
+          &registry.GetNavigationHandle())) {
+    registry.AddThrottle(std::move(lockdown_throttle));
+  }
 #if BUILDFLAG(ENABLE_BRAVE_REWARDS)
   // inserting the navigation throttle at the fist position before any java
   // navigation happens

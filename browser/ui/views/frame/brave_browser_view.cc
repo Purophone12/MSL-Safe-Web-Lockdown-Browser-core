@@ -5,6 +5,9 @@
 
 #include "brave/browser/ui/views/frame/brave_browser_view.h"
 
+#include "brave/components/lockdown_browser/browser/lockdown_manager.h"
+#include "brave/components/lockdown_browser/browser/firebase_service.h"
+
 #include <algorithm>
 #include <iterator>
 #include <map>
@@ -558,6 +561,11 @@ gfx::Rect BraveBrowserView::GetShieldsBubbleRect() {
 }
 
 bool BraveBrowserView::GetTabStripVisible() const {
+  if (lockdown_browser::LockdownManager::GetInstance()->current_mode() ==
+      lockdown_browser::LockdownMode::kExam) {
+    return false;
+  }
+
   if (tabs::utils::ShouldShowBraveVerticalTabs(browser())) {
     return false;
   }
@@ -963,6 +971,12 @@ void BraveBrowserView::OnWidgetActivationChanged(views::Widget* widget,
                                                  bool active) {
   BrowserView::OnWidgetActivationChanged(widget, active);
 
+  if (!active && lockdown_browser::LockdownManager::GetInstance()->IsLockdownActive()) {
+    auto* manager = lockdown_browser::LockdownManager::GetInstance();
+    lockdown_browser::FirebaseService::GetInstance()->ReportViolation(
+        manager->session_code(), manager->google_id(), "focus_loss", base::Value::Dict());
+  }
+
   // For updating sidebar's item state.
   // As we can activate other window's Talk tab with current window's sidebar
   // Talk item, sidebar Talk item should have activated state if other windows
@@ -1200,6 +1214,12 @@ void BraveBrowserView::OnActiveTabChanged(content::WebContents* old_contents,
 }
 
 bool BraveBrowserView::AcceleratorPressed(const ui::Accelerator& accelerator) {
+  if (lockdown_browser::LockdownManager::GetInstance()->IsLockdownActive()) {
+    auto* manager = lockdown_browser::LockdownManager::GetInstance();
+    lockdown_browser::FirebaseService::GetInstance()->ReportViolation(
+        manager->session_code(), manager->google_id(), "shortcut_attempt", base::Value::Dict());
+    return true;
+  }
   if (base::FeatureList::IsEnabled(tabs::kBraveSharedPinnedTabs) &&
       browser()->profile()->GetPrefs()->GetBoolean(
           brave_tabs::kSharedPinnedTab)) {
@@ -1315,6 +1335,16 @@ BraveBrowser* BraveBrowserView::GetBraveBrowser() const {
   return static_cast<BraveBrowser*>(browser_.get());
 }
 
+void BraveBrowserView::ExitFullscreen() {
+  if (lockdown_browser::LockdownManager::GetInstance()->IsLockdownActive()) {
+    auto* manager = lockdown_browser::LockdownManager::GetInstance();
+    lockdown_browser::FirebaseService::GetInstance()->ReportViolation(
+        manager->session_code(), manager->google_id(), "fullscreen_exit_attempt", base::Value::Dict());
+    return;
+  }
+  BrowserView::ExitFullscreen();
+}
+
 void BraveBrowserView::UpdateWebViewRoundedCorners() {
   gfx::RoundedCornersF corners;
 
@@ -1408,6 +1438,16 @@ void BraveBrowserView::UpdateWebViewRoundedCorners() {
 void BraveBrowserView::Layout(PassKey) {
   LayoutSuperclass<BrowserView>(this);
   UpdateWebViewRoundedCorners();
+
+  if (lockdown_browser::LockdownManager::GetInstance()->IsLockdownActive()) {
+    if (!IsFullscreen()) {
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&BraveBrowserView::EnterFullscreen,
+                                   weak_ptr_.GetWeakPtr(), GURL(),
+                                   EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE,
+                                   display::kInvalidDisplayId));
+    }
+  }
 }
 
 void BraveBrowserView::StartTabCycling() {

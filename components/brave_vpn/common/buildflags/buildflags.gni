@@ -7,8 +7,7 @@ import("//brave/components/brave_origin/buildflags/buildflags.gni")
 
 declare_args() {
   # On macOS, vpn is not available w/o signing.
-  enable_brave_vpn =
-      (is_win || is_android || is_mac || is_ios) && !is_brave_origin_branded
+  enable_brave_vpn = false
 }
 
 declare_args() {

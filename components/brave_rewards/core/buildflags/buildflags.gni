@@ -6,7 +6,7 @@
 import("//brave/components/brave_origin/buildflags/buildflags.gni")
 
 declare_args() {
-  enable_brave_rewards = !is_brave_origin_branded
+  enable_brave_rewards = false
 
   bitflyer_production_fee_address = ""
   bitflyer_production_url = ""
